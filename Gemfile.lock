@@ -1,7 +1,8 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    bigdecimal (3.2.3)
+    byebug (12.0.0)
+    coderay (1.1.3)
     date (3.4.1)
     dotenv (3.1.8)
     json (2.13.2)
@@ -10,7 +11,7 @@ GEM
       net-imap
       net-pop
       net-smtp
-    matrix (0.4.3)
+    method_source (1.1.0)
     mini_mime (1.1.5)
     net-http (0.6.0)
       uri
@@ -23,21 +24,13 @@ GEM
       timeout
     net-smtp (0.5.1)
       net-protocol
-    nokogiri (1.18.10-arm64-darwin)
-      racc (~> 1.4)
-    pdf-core (0.10.0)
-    prawn (2.5.0)
-      matrix (~> 0.4)
-      pdf-core (~> 0.10.0)
-      ttfunk (~> 1.8)
-    racc (1.8.1)
-    rubyXL (3.4.33)
-      nokogiri (>= 1.10.8)
-      rubyzip (>= 1.3.0)
-    rubyzip (3.1.0)
+    pry (0.15.2)
+      coderay (~> 1.1)
+      method_source (~> 1.0)
+    pry-byebug (3.11.0)
+      byebug (~> 12.0)
+      pry (>= 0.13, < 0.16)
     timeout (0.4.3)
-    ttfunk (1.8.0)
-      bigdecimal (~> 3.1)
     uri (1.0.3)
 
 PLATFORMS
@@ -48,8 +41,8 @@ DEPENDENCIES
   json
   mail
   net-http
-  prawn
-  rubyXL
+  pry
+  pry-byebug
 
 BUNDLED WITH
    2.7.2
