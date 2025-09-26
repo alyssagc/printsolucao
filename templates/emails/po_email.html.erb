@@ -1,0 +1,65 @@
+<h2>Pedido de Compra - <%= deal["po_number"] %></h2>
+
+<hr>
+
+<h3>Infos</h3>
+<p><strong>ID da Negociação:</strong> <%= deal["deal_id"] %></p>
+<p><strong>Título:</strong> <%= deal["deal_name"] %></p>
+<p><strong>Fase:</strong> <%= deal["fase"] %></p>
+<p><strong>Status:</strong> <%= deal["status"] %></p>
+
+<hr>
+
+<h3>Empresa</h3>
+<p><strong>Nome:</strong> <%= deal["organization"]["name"] %></p>
+<p><strong>Endereço:</strong> <%= deal["organization"]["address"] || "—" %></p>
+<p><strong>Responsável:</strong> <%= deal["organization"]["responsavel"] %></p>
+<p><strong>Email do responsável:</strong> <%= deal["organization"]["responsavel_email"] %></p>
+<p><strong>Segmento:</strong> <%= deal["organization"]["segmento"]&.join(", ") || "—" %></p>
+
+<hr>
+
+<h3>Responsável da Negociação</h3>
+<p><strong>Nome:</strong> <%= deal["owner"]["name"] %></p>
+<p><strong>Email:</strong> <%= deal["owner"]["email"] %></p>
+
+<hr>
+
+<h3>Produtos</h3>
+<table border="1" cellpadding="5" cellspacing="0">
+  <tr>
+    <th>Nome</th>
+    <th>Quantidade</th>
+    <th>Preço Unitário (R$)</th>
+    <th>Total (R$)</th>
+  </tr>
+  <% deal["products"].each do |p| %>
+    <tr>
+      <td><%= p["name"] %></td>
+      <td><%= p["amount"] %></td>
+      <td><%= "%.2f" % p["price"] %></td>
+      <td><%= "%.2f" % p["total"] %></td>
+    </tr>
+  <% end %>
+</table>
+
+<hr>
+
+<h3>Campos Personalizados</h3>
+<% if deal["custom_fields"].any? %>
+  <ul>
+    <% deal["custom_fields"].each do |label, value| %>
+      <li><strong><%= label %>:</strong> <%= value.empty? ? "—" : value %></li>
+    <% end %>
+  </ul>
+<% else %>
+  <p>Nenhum campo personalizado.</p>
+<% end %>
+
+<hr>
+
+<p><strong>Valor Total:</strong> R$ <%= "%.2f" % deal["total_amount"] %></p>
+
+<hr>
+
+<p><small>Criado em: <%= deal["created_at"] %> | Atualizado em: <%= deal["updated_at"] %></small></p>
