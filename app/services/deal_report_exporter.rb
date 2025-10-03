@@ -13,7 +13,7 @@ class DealReportExporter
     CSV.open(file_path, "w", col_sep: ",", headers: true) do |csv|
       csv << csv_headers
 
-      @deals.first(15).each do |deal|
+      @deals.each do |deal|
         full_infos = @crm_connector.get_deal(deal['id'])
         csv << csv_row(full_infos)
       end
