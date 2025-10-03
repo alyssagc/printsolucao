@@ -9,7 +9,8 @@ Dir[File.expand_path("../initializers/*.rb", __FILE__)].each do |file|
   require file
 end
 
-Carrega app
+#Carrega app
 require "app/services/smtp_mailer"
 require "app/services/rdstation_connector"
 require "app/generators/po_generator"
+require "app/services/deal_report_exporter"
