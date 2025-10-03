@@ -42,11 +42,18 @@ class RDStationCRMConnector
     JSON.parse(response.body)
   end
 
-  # Retorna apenas os deals ganhos e em status de pedido
-  def get_won_deals
+  # Retorna um deal
+  def get_deal(deal_id)
+    raise "deal_id não pode ser nil" if deal_id.nil? || deal_id.to_s.strip.empty?
+
+    get("deals/#{deal_id}")
+  end
+
+  # Retorna apenas os deals ganhos, coluna pedido, e que nao tenha PO gerado
+  def get_won_notsent_deals
     all_won = []
 
-    each_deal_page do |deals|
+    each_deal_page(win: true) do |deals|
       deals.select! do |deal|
         stage_name = normalize_string(deal.dig("deal_stage", "name"))
         in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
@@ -86,21 +93,37 @@ class RDStationCRMConnector
     JSON.parse(response.body)
   end
 
+  # Retorna deals na coluna de pedido
+  def get_po_deals
+    all_won = []
+
+    each_deal_page do |deals|
+      deals.select! do |deal|
+        stage_name = normalize_string(deal.dig("deal_stage", "name"))
+        PO_STATUS.any? { |status| normalize_string(status) == stage_name }
+      end
+
+      all_won.concat(deals)
+    end
+    all_won
+  end
+
   private
 
   def normalize_string(str)
     str.to_s.downcase.strip
   end
 
-  # Itera por todas as páginas de deals, usando filtro win=true
-  def each_deal_page
+  # Itera por todas as páginas de deals
+  def each_deal_page(params = {})
     next_page = nil
 
     loop do
-      params = { win: true } # filtro no servidor
-      params[:next_page] = next_page if next_page
+      query = params.dup
+      query[:limit] ||= 200
+      query[:next_page] = next_page if next_page
 
-      response = get("deals", params)
+      response = get("deals", query)
       deals = response.fetch("deals", [])
 
       yield deals if block_given?
