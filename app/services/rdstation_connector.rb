@@ -96,7 +96,7 @@ class RDStationCRMConnector
 
   def request(method, endpoint, params: {}, body: nil)
     url = URI("#{base_url}/#{endpoint}")
-    url.query = URI.encode_www_form(params.merge(token: token)) if method == :get && params.any?
+    url.query = URI.encode_www_form(params.merge(token: token))
 
     http = Net::HTTP.new(url.host, url.port)
     http.use_ssl = true
