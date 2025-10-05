@@ -108,6 +108,30 @@ class RDStationCRMConnector
     all_won
   end
 
+  #Criar task
+  def create_task(payload)
+    url = URI("#{base_url}/tasks?token=#{token}")
+    http = Net::HTTP.new(url.host, url.port)
+    http.use_ssl = true
+
+    request = Net::HTTP::Post.new(url)
+    request['Content-Type'] = 'application/json'
+
+    request.body = payload.to_json
+
+    begin
+      response = http.request(request)
+    rescue StandardError => e
+      raise "Erro de conexão ao criar task: #{e.message}"
+    end
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise "Erro ao criar task para deal #{deal_id}: #{response.code} #{response.message}\n#{response.body}"
+    end
+
+    JSON.parse(response.body)
+  end
+
   private
 
   def normalize_string(str)
