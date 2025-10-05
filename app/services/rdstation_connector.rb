@@ -18,42 +18,23 @@ class RDStationCRMConnector
     @logger = logger || Logger.new($stdout)
   end
 
-  # Método genérico para GET (com suporte a query params)
-  def get(endpoint, params = {})
-    query = URI.encode_www_form(params.merge(token: token))
-    url = URI("#{base_url}/#{endpoint}?#{query}")
-
-    http = Net::HTTP.new(url.host, url.port)
-    http.use_ssl = true
-
-    request = Net::HTTP::Get.new(url)
-    request['accept'] = 'application/json'
-
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão GET #{url}: #{e.message}"
-    end
-
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro na requisição GET #{url}: #{response.code} #{response.message}\n#{response.body}"
-    end
-
-    JSON.parse(response.body)
-  end
-
-  # Retorna um deal
-  def get_deal(deal_id)
+  # Retorna um deal específico pelo ID
+  def fetch_deal(deal_id)
     raise "deal_id não pode ser nil" if deal_id.nil? || deal_id.to_s.strip.empty?
 
-    get("deals/#{deal_id}")
+    request(:get, "deals/#{deal_id}")
   end
 
-  # Retorna apenas os deals ganhos, coluna pedido, e que nao tenha PO gerado
-  def get_won_notsent_deals
+  # Atualiza um deal específico
+  def update_deal(deal_id, attributes = {})
+    request(:put, "deals/#{deal_id}", body: attributes)
+  end
+
+  # Retorna negociações ganhas na coluna de pedido, que ainda não tiveram PO gerado/enviado
+  def fetch_won_deals_pending_po
     all_won = []
 
-    each_deal_page(win: true) do |deals|
+    iterate_deals_page(win: true) do |deals|
       deals.select! do |deal|
         stage_name = normalize_string(deal.dig("deal_stage", "name"))
         in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
@@ -69,35 +50,11 @@ class RDStationCRMConnector
     all_won
   end
 
-  # Método PUT atualizar atributos crm
-  def update_deal(deal_id, attributes = {})
-    url = URI("#{base_url}/deals/#{deal_id}?token=#{token}")
-
-    http = Net::HTTP.new(url.host, url.port)
-    http.use_ssl = true
-
-    request = Net::HTTP::Put.new(url)
-    request['Content-Type'] = 'application/json'
-    request.body = attributes.to_json
-
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão PUT #{url}: #{e.message}"
-    end
-
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro ao atualizar deal #{deal_id}: #{response.code} #{response.message}\n#{response.body}"
-    end
-
-    JSON.parse(response.body)
-  end
-
-  # Retorna deals na coluna de pedido
-  def get_po_deals
+  # Retorna negociações em qualquer status da coluna de pedido, independente de ganho
+  def fetch_deals_in_po_stage
     all_won = []
 
-    each_deal_page do |deals|
+    iterate_deals_page do |deals|
       deals.select! do |deal|
         stage_name = normalize_string(deal.dig("deal_stage", "name"))
         PO_STATUS.any? { |status| normalize_string(status) == stage_name }
@@ -108,28 +65,9 @@ class RDStationCRMConnector
     all_won
   end
 
-  #Criar task
+  # Cria uma tarefa
   def create_task(payload)
-    url = URI("#{base_url}/tasks?token=#{token}")
-    http = Net::HTTP.new(url.host, url.port)
-    http.use_ssl = true
-
-    request = Net::HTTP::Post.new(url)
-    request['Content-Type'] = 'application/json'
-
-    request.body = payload.to_json
-
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão ao criar task: #{e.message}"
-    end
-
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro ao criar task para deal #{deal_id}: #{response.code} #{response.message}\n#{response.body}"
-    end
-
-    JSON.parse(response.body)
+    request(:post, "tasks", body: payload)
   end
 
   private
@@ -138,8 +76,7 @@ class RDStationCRMConnector
     str.to_s.downcase.strip
   end
 
-  # Itera por todas as páginas de deals
-  def each_deal_page(params = {})
+  def iterate_deals_page(params = {})
     next_page = nil
 
     loop do
@@ -147,14 +84,45 @@ class RDStationCRMConnector
       query[:limit] ||= 200
       query[:next_page] = next_page if next_page
 
-      response = get("deals", query)
+      response = request(:get, "deals", params: query)
       deals = response.fetch("deals", [])
 
       yield deals if block_given?
 
       break unless response["has_more"]
-
       next_page = response["next_page"]
     end
+  end
+
+  def request(method, endpoint, params: {}, body: nil)
+    url = URI("#{base_url}/#{endpoint}")
+    url.query = URI.encode_www_form(params.merge(token: token)) if method == :get && params.any?
+
+    http = Net::HTTP.new(url.host, url.port)
+    http.use_ssl = true
+
+    request = case method
+              when :get  then Net::HTTP::Get.new(url)
+              when :put  then Net::HTTP::Put.new(url)
+              when :post then Net::HTTP::Post.new(url)
+              else
+                raise "Método HTTP não suportado: #{method}"
+              end
+
+    request['Content-Type'] = 'application/json'
+    request['Accept'] = 'application/json'
+    request.body = body.to_json if body
+
+    begin
+      response = http.request(request)
+    rescue StandardError => e
+      raise "Erro de conexão #{method.upcase} #{url}: #{e.message}"
+    end
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+    end
+
+    JSON.parse(response.body)
   end
 end

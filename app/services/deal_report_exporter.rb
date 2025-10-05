@@ -14,7 +14,7 @@ class DealReportExporter
       csv << csv_headers
 
       @deals.each do |deal|
-        full_infos = @crm_connector.get_deal(deal['id'])
+        full_infos = @crm_connector.fetch_deal(deal['id'])
         csv << csv_row(full_infos)
       end
     end
