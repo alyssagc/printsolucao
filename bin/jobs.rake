@@ -55,7 +55,7 @@ namespace :jobs do
       logger.info "✅ #{deals.size} deals encontrados"
 
       if deals.any?
-        exporter = DealReportExporter.new(deals.first(30))
+        exporter = DealReportExporter.new(deals)
         exporter.generate_csv("output/relatorio_pedidos.csv")
 
         logger.info "Dados salvos com sucesso!"
