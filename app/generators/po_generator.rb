@@ -6,6 +6,7 @@ class POGenerator
   attr_reader :deals, :logger
 
   LAST_PO_FILE = 'output/last_po.txt'
+  ID_VIVI = '64d62262f7bee8002510c6eb'
 
   def initialize(deals, logger: nil, crm_connector: nil)
     @deals = deals || []
@@ -30,6 +31,7 @@ class POGenerator
       mark_deal_as_sent(po)
       write_last_po(po_number)
       send_po_email(po, mailer, template_content)
+      create_task(po)
 
       logger.info " "
     end
@@ -38,6 +40,28 @@ class POGenerator
   end
 
   private
+
+  #Cria task (vivi) para entrar com pedido
+  def create_task(po_hash)
+    begin
+      task_payload = {
+        task: {
+          deal_id: po_hash['deal_id'],
+          subject: "Entrar com o Pedido",
+          notes: po_hash['po_number'],
+          date: Date.today.strftime("%Y-%m-%d"),
+          hour: Time.now.strftime("%H:%M"),
+          type: "task",
+          user_ids: [ID_VIVI]
+        }
+      }
+
+      response = @crm_connector.create_task(task_payload)
+      logger.info "Tarefa criada para Viviane: #{response['id']} -> #{response['subject']}"
+    rescue StandardError => e
+      logger.error "*** Falha ao criar tarefa: #{e.message}"
+    end
+  end
 
   # Envia email para o vendedor
   def send_po_email(po, mailer, template_content)
