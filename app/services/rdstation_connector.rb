@@ -20,7 +20,7 @@ class RDStationCRMConnector
 
   # Retorna um deal específico pelo ID
   def fetch_deal(deal_id)
-    raise "deal_id não pode ser nil" if deal_id.nil? || deal_id.to_s.strip.empty?
+    raise "deal_id não pode ser nil" if deal_id.blank?
 
     request(:get, "deals/#{deal_id}")
   end
@@ -40,7 +40,7 @@ class RDStationCRMConnector
         in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
 
         campo_pedido_enviado = deal.dig("deal_custom_fields")&.find { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
-        enviar_pedido = campo_pedido_enviado.nil?
+        enviar_pedido = campo_pedido_enviado.blank?
 
         in_po_status && enviar_pedido
       end
