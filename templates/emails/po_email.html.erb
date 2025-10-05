@@ -49,7 +49,7 @@
 <% if deal["custom_fields"].any? %>
   <ul>
     <% deal["custom_fields"].each do |label, value| %>
-      <li><strong><%= label %>:</strong> <%= value.empty? ? "—" : value %></li>
+      <li><strong><%= label %>:</strong> <%= value.blank? ? "—" : value %></li>
     <% end %>
   </ul>
 <% else %>
