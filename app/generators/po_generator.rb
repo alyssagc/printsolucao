@@ -65,7 +65,7 @@ class POGenerator
   def send_po_email(po, mailer, template_content)
     recipient = po.dig('owner', 'email')
 
-    if recipient.nil? || recipient.empty?
+    if recipient.blank?
       logger.warn "*** Deal #{po['deal_name']} não tem email responsável da print cadastrado. Pulando envio."
       return
     end
