@@ -26,7 +26,7 @@ namespace :jobs do
 
       logger.info "✅ #{deals.size} deals encontrados para gerar POs"
 
-      if deals.empty?
+      if deals.blank?
         logger.info "*** Nenhum deal ganho encontrado. Encerrando execução."
         next
       end

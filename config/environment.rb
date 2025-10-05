@@ -1,5 +1,7 @@
 require 'bundler/setup'
 require 'dotenv/load'
+require 'active_support'
+require 'active_support/core_ext/object/blank'
 
 # Ajusta o load path
 $LOAD_PATH.unshift(File.expand_path("../..", __FILE__))

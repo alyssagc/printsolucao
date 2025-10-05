@@ -64,7 +64,7 @@ class DealReportExporter
   end
 
   def format_products(products)
-    return "" if products.empty?
+    return "" if products.blank?
 
     products.map do |p|
       "#{p['name'].strip} (Preço_unit: #{p['price']}, Qtd: #{p['amount']}, Preço_total: #{p['total']})"
