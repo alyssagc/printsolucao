@@ -74,7 +74,7 @@ class POGenerator
       html_body = ERB.new(template_content).result_with_hash(deal: po)
       mailer.send(
         to: recipient,
-        subject: "Pedido de Compra - #{po['deal_name']}",
+        subject: "Pedido de Compra - #{po['deal_name']} #{po['po_number']}",
         body: html_body
       )
 
