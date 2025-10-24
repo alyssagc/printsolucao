@@ -11,6 +11,7 @@ class RDStationCRMConnector
     "fechamento do pedido",
     "fechamento pedido"
   ].freeze
+  DELL_CAMPAING = 'dell'.freeze
 
   def initialize(token: RD_CONFIG[:token], base_url: "https://crm.rdstation.com/api/v1", logger: nil)
     @token = token
@@ -34,15 +35,18 @@ class RDStationCRMConnector
   def fetch_won_deals_pending_po
     all_won = []
 
-    iterate_deals_page(win: true) do |deals|
+    iterate_deals_page do |deals|
       deals.select! do |deal|
         stage_name = normalize_string(deal.dig("deal_stage", "name"))
         in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
 
+        campaing = normalize_string(deal.dig("campaign", "name"))
+        in_dell_campaign = campaing == DELL_CAMPAING
+
         campo_pedido_enviado = deal.dig("deal_custom_fields")&.find { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
         enviar_pedido = campo_pedido_enviado.blank?
 
-        in_po_status && enviar_pedido
+        in_po_status && enviar_pedido && in_dell_campaign
       end
 
       all_won.concat(deals)
