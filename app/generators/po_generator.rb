@@ -19,10 +19,6 @@ class POGenerator
     logger.info "Fluxo POs iniciado"
     logger.info ""
 
-    template_path = File.join('templates', 'emails', 'po_email.html.erb')
-    template_content = File.read(template_path)
-    mailer = SmtpMailer.new
-
     @deals.each do |deal|
       po = po_hash(deal)
 
@@ -30,7 +26,7 @@ class POGenerator
 
       mark_deal_as_sent(po)
       write_last_po(po['po_number'])
-      send_po_email(po, mailer, template_content)
+      send_po_email(po)
       create_task(po)
 
       logger.info ""
@@ -62,7 +58,7 @@ class POGenerator
   end
 
   # Envia email para o vendedor
-  def send_po_email(po, mailer, template_content)
+  def send_po_email(po)
     recipient = po.dig('owner', 'email')
 
     if recipient.blank?
@@ -70,13 +66,13 @@ class POGenerator
       return
     end
 
+    template_path = File.join('templates', 'emails', 'po_email.html.erb')
+    template_content = File.read(template_path)
+    mailer = SmtpMailer.new
+
     begin
       html_body = ERB.new(template_content).result_with_hash(deal: po)
-      mailer.send(
-        to: recipient,
-        subject: "Pedido de Compra - #{po['deal_name']} #{po['po_number']}",
-        body: html_body
-      )
+      mailer.mail_po_infos(po_number: po['po_number'], recipient: recipient, html_body: html_body)
 
       logger.info "Email enviado para #{recipient} com o PO #{po['po_number']}"
     rescue StandardError => e
