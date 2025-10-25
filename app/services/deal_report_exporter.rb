@@ -6,11 +6,9 @@ class DealReportExporter
     @crm_connector = RDStationCRMConnector.new
   end
 
-  # Gera CSV no caminho especificado
-  def generate_csv(file_path)
-    file_path = csv_file_path
-
-    CSV.open(file_path, "w", col_sep: ",", headers: true) do |csv|
+  # Gera CSV
+  def to_csv_string
+    CSV.generate(headers: true) do |csv|
       csv << csv_headers
 
       @deals.each do |deal|
@@ -22,16 +20,12 @@ class DealReportExporter
 
   private
 
-  def csv_file_path
-    timestamp = Date.today.strftime("%Y-%m-%d")
-    "output/relatorios_vendas/relatorio_#{timestamp}.csv"
-  end
-
   def csv_headers
     [
       "Deal ID",
       "Status",
       "Nome da Negociação",
+      "Campanha",
       "PO Gerado",
       "Funil",
       "Etapa",
@@ -50,6 +44,7 @@ class DealReportExporter
       deal["id"],
       deal["win"] ? "Vendido" : "Perdido",
       deal["name"],
+      deal.dig("campaign", "name"),
       po_number(deal["name"]),
       deal.dig("deal_pipeline", "name"),
       deal.dig("deal_stage", "name"),
