@@ -114,6 +114,7 @@ class POGenerator
       "deal_name" => deal["name"],
       "fase" => deal.dig("deal_stage", "name"),
       "status" => deal["win"] ? 'Vendido' : 'Perdido',
+      "campanha" => deal.dig("campaign", "name"),
       "organization" => {
         "name" => deal.dig("organization","name"),
         "address" => deal.dig("organization","address"),
