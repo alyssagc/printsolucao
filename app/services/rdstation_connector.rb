@@ -56,7 +56,7 @@ class RDStationCRMConnector
 
   # Retorna negociações em qualquer status da coluna de pedido, independente de ganho
   def fetch_deals_in_po_stage
-    all_won = []
+    all_deals = []
 
     iterate_deals_page do |deals|
       deals.select! do |deal|
@@ -64,9 +64,9 @@ class RDStationCRMConnector
         PO_STATUS.any? { |status| normalize_string(status) == stage_name }
       end
 
-      all_won.concat(deals)
+      all_deals.concat(deals)
     end
-    all_won
+    all_deals
   end
 
   # Cria uma tarefa
@@ -110,23 +110,48 @@ class RDStationCRMConnector
               when :put  then Net::HTTP::Put.new(url)
               when :post then Net::HTTP::Post.new(url)
               else
-                raise "Método HTTP não suportado: #{method}"
+                raise ArgumentError, "Método HTTP não suportado: #{method}"
               end
 
     request['Content-Type'] = 'application/json'
     request['Accept'] = 'application/json'
     request.body = body.to_json if body
 
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão #{method.upcase} #{url}: #{e.message}"
-    end
+    max_retries = 5
+    retry_count = 0
 
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
-    end
+    while retry_count <= max_retries
+      begin
+        response = http.request(request)
 
-    JSON.parse(response.body)
+        case response
+        when Net::HTTPSuccess
+          return JSON.parse(response.body) rescue {}
+
+        when Net::HTTPTooManyRequests
+          wait_time = response['Retry-After']&.to_i || (2 ** retry_count) * 5
+          logger&.warn("⚠️  Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
+          sleep(wait_time)
+          retry_count += 1
+
+        else
+          raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+        end
+
+      rescue JSON::ParserError
+        logger&.warn("⚠️  Resposta vazia ou inválida de #{url}")
+        return {}
+
+      rescue StandardError => e
+        retry_count += 1
+        if retry_count <= max_retries
+          wait_time = (2 ** retry_count) * 3
+          logger&.warn("Erro de conexão (tentativa #{retry_count}/#{max_retries}): #{e.message}. Tentando novamente em #{wait_time}s...")
+          sleep(wait_time)
+        else
+          raise "Erro permanente em #{method.upcase} #{url}: #{e.message}"
+        end
+      end
+    end
   end
 end
