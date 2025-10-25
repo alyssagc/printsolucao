@@ -18,10 +18,10 @@ class SmtpMailer
     Mail.defaults { delivery_method :smtp, options }
   end
 
-  def send(to:, subject:, body:, from: nil)
+  def send(to:, subject:, body:, from: nil, attachments: {})
     from ||= EMAIL_CONFIG[:user] || 'no-reply@example.com'
 
-    Mail.deliver do
+    mail = Mail.new do
       from    from
       to      to
       subject subject
@@ -30,5 +30,30 @@ class SmtpMailer
         body body
       end
     end
+
+    attachments.each do |filename, content|
+      mail.add_file(filename: filename, content: content)
+    end
+
+    mail.deliver!
+  end
+
+  def mail_deals_info(csv_string)
+    date = Date.today.strftime('%d/%m/%Y')
+
+    send(
+      to: EMAIL_CONFIG[:to],
+      subject: "Relatório de Deals - #{date}",
+      body: '<p>Segue anexo o relatório de deals.</p>',
+      attachments: { "relatorio_deals_#{date}.csv" => csv_string }
+    )
+  end
+
+  def mail_po_infos(po_number:, recipient:, html_body:)
+    send(
+      to: recipient,
+      subject: "Pedido de Compra - #{po_number}",
+      body: html_body
+    )
   end
 end

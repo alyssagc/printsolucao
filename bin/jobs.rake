@@ -11,7 +11,12 @@ namespace :jobs do
   def build_logger
     FileUtils.mkdir_p(LOG_DIR)
     logger = Logger.new(LOG_FILE, 'daily')
-    logger.level = Logger::INFO
+    logger = Logger.new(LOG_FILE, 5, 5 * 1024 * 1024)
+
+    logger.formatter = proc do |severity, datetime, _progname, msg|
+      "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] #{severity}: #{msg}\n"
+    end
+
     logger
   end
 
@@ -56,11 +61,14 @@ namespace :jobs do
 
       if deals.any?
         exporter = DealReportExporter.new(deals)
-        exporter.generate_csv("output/relatorio_pedidos.csv")
+        csv_string = exporter.to_csv_string
 
-        logger.info "Dados salvos com sucesso!"
+        mailer = SmtpMailer.new
+        mailer.mail_deals_info(csv_string)
+
+        logger.info "Relatório enviado por email com sucesso!"
       else
-        logger.info "*** Nenhum deal ganho encontrado. Encerrando execução."
+        logger.info "*** Nenhum deal encontrado. Encerrando execução."
       end
 
       logger.info "Job encerrado!"
