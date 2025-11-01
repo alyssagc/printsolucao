@@ -6,7 +6,9 @@ class POGenerator
   attr_reader :deals, :logger
 
   LAST_PO_FILE = 'output/last_po.txt'
+  TEMPLATE_PATH = 'templates/emails/po_email.html.erb'
   ID_VIVI = '64d62262f7bee8002510c6eb'
+
 
   def initialize(deals, logger: nil, crm_connector: nil)
     @deals = deals || []
@@ -66,8 +68,7 @@ class POGenerator
       return
     end
 
-    template_path = File.join('templates', 'emails', 'po_email.html.erb')
-    template_content = File.read(template_path)
+    template_content = File.read(TEMPLATE_PATH)
     mailer = SmtpMailer.new
 
     begin
@@ -100,6 +101,14 @@ class POGenerator
     logger.info "CRM atualizado: #{po_hash['deal_id']} -> #{new_name}"
   rescue StandardError => e
     logger.error "*** Falha ao atualizar CRM para deal #{po_hash['deal_id']}: #{e.message}"
+  end
+
+  def safe_format_date(date)
+    return "—" if date.blank?
+
+    Time.parse(date).strftime("%d/%m/%Y %H:%M")
+  rescue StandardError
+    "—"
   end
 
   # Gera o hash do PO
@@ -136,9 +145,8 @@ class POGenerator
         [label, value]
       end.to_h,
       "total_amount" => deal["amount_total"],
-      "created_at" => deal["created_at"] ? Time.parse(deal["created_at"]).strftime("%d/%m/%Y %H:%M") : "—",
-      "updated_at" => deal["updated_at"] ? Time.parse(deal["updated_at"]).strftime("%d/%m/%Y %H:%M") : "—",
-
+      "created_at" => safe_format_date(deal["created_at"]),
+      "updated_at" => safe_format_date(deal["updated_at"])
     }
   end
 

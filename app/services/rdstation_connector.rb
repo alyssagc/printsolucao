@@ -37,16 +37,9 @@ class RDStationCRMConnector
 
     iterate_deals_page do |deals|
       deals.select! do |deal|
-        stage_name = normalize_string(deal.dig("deal_stage", "name"))
-        in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
-
-        campaing = normalize_string(deal.dig("campaign", "name"))
-        in_dell_campaign = campaing == DELL_CAMPAING
-
-        campo_pedido_enviado = deal.dig("deal_custom_fields")&.find { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
-        enviar_pedido = campo_pedido_enviado.blank?
-
-        in_po_status && enviar_pedido && in_dell_campaign
+        po_stage?(deal) &&
+        !deal_sent?(deal) &&
+        normalize_string(deal.dig("campaign", "name")) == DELL_CAMPAING
       end
 
       all_won.concat(deals)
@@ -59,13 +52,10 @@ class RDStationCRMConnector
     all_deals = []
 
     iterate_deals_page do |deals|
-      deals.select! do |deal|
-        stage_name = normalize_string(deal.dig("deal_stage", "name"))
-        PO_STATUS.any? { |status| normalize_string(status) == stage_name }
-      end
-
+      deals.select! { |deal| po_stage?(deal) }
       all_deals.concat(deals)
     end
+
     all_deals
   end
 
@@ -75,6 +65,15 @@ class RDStationCRMConnector
   end
 
   private
+
+  def deal_sent?(deal)
+    Array(deal.dig("deal_custom_fields")).any? { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
+  end
+
+  def po_stage?(deal)
+    stage_name = normalize_string(deal.dig("deal_stage", "name"))
+    PO_STATUS.any? { |status| normalize_string(status) == stage_name }
+  end
 
   def normalize_string(str)
     str.to_s.downcase.strip
@@ -117,40 +116,44 @@ class RDStationCRMConnector
     request['Accept'] = 'application/json'
     request.body = body.to_json if body
 
+    perform_request_with_retries(http, request, method, url)
+  end
+
+  def perform_request_with_retries(http, request, method, url)
     max_retries = 5
     retry_count = 0
 
-    while retry_count <= max_retries
-      begin
-        response = http.request(request)
+    begin
+      response = http.request(request)
 
-        case response
-        when Net::HTTPSuccess
-          return JSON.parse(response.body) rescue {}
+      case response
+      when Net::HTTPSuccess
+        JSON.parse(response.body) rescue {}
 
-        when Net::HTTPTooManyRequests
-          wait_time = response['Retry-After']&.to_i || (2 ** retry_count) * 5
-          logger&.warn("⚠️  Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
-          sleep(wait_time)
-          retry_count += 1
-
-        else
-          raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
-        end
-
-      rescue JSON::ParserError
-        logger&.warn("⚠️  Resposta vazia ou inválida de #{url}")
-        return {}
-
-      rescue StandardError => e
+      when Net::HTTPTooManyRequests
+        wait_time = response['Retry-After']&.to_i || (2**retry_count) * 5
+        logger&.warn("*** Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
+        sleep(wait_time)
         retry_count += 1
-        if retry_count <= max_retries
-          wait_time = (2 ** retry_count) * 3
-          logger&.warn("Erro de conexão (tentativa #{retry_count}/#{max_retries}): #{e.message}. Tentando novamente em #{wait_time}s...")
-          sleep(wait_time)
-        else
-          raise "Erro permanente em #{method.upcase} #{url}: #{e.message}"
-        end
+        retry
+
+      else
+        raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+      end
+
+    rescue JSON::ParserError
+      logger&.warn("***Resposta vazia ou inválida de #{url}")
+      {}
+
+    rescue StandardError => e
+      retry_count += 1
+      if retry_count <= max_retries
+        wait_time = (2**retry_count) * 3
+        logger&.warn("Erro de conexão (tentativa #{retry_count}/#{max_retries}): #{e.message}. Tentando novamente em #{wait_time}s...")
+        sleep(wait_time)
+        retry
+      else
+        raise "Erro permanente em #{method.upcase} #{url}: #{e.message}"
       end
     end
   end

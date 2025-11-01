@@ -2,25 +2,19 @@ require 'mail'
 
 class SmtpMailer
   def initialize
-    options = if EMAIL_CONFIG[:env] == 'development'
-      { address: 'localhost', port: 1025 } # MailCatcher
-    else
-      {
-        address:              EMAIL_CONFIG[:smtp_address],
-        port:                 EMAIL_CONFIG[:smtp_port],
-        user_name:            EMAIL_CONFIG[:user],
-        password:             EMAIL_CONFIG[:pass],
-        authentication:       :login,
-        enable_starttls_auto: true
-      }
-    end
+    options = {
+      address:              EMAIL_CONFIG[:smtp_address],
+      port:                 EMAIL_CONFIG[:smtp_port],
+      user_name:            EMAIL_CONFIG[:user],
+      password:             EMAIL_CONFIG[:pass],
+      authentication:       :login,
+      enable_starttls_auto: true
+    }
 
     Mail.defaults { delivery_method :smtp, options }
   end
 
-  def send(to:, subject:, body:, from: nil, attachments: {})
-    from ||= EMAIL_CONFIG[:user] || 'no-reply@example.com'
-
+   def send(to:, subject:, body:, from: EMAIL_CONFIG[:user], attachments: {})
     mail = Mail.new do
       from    from
       to      to
@@ -31,10 +25,7 @@ class SmtpMailer
       end
     end
 
-    attachments.each do |filename, content|
-      mail.add_file(filename: filename, content: content)
-    end
-
+    attachments.each { |filename, content| mail.add_file(filename: filename, content: content) }
     mail.deliver!
   end
 
