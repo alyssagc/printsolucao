@@ -2,19 +2,28 @@ require 'mail'
 
 class SmtpMailer
   def initialize
-    options = {
-      address:              EMAIL_CONFIG[:smtp_address],
-      port:                 EMAIL_CONFIG[:smtp_port],
-      user_name:            EMAIL_CONFIG[:user],
-      password:             EMAIL_CONFIG[:pass],
-      authentication:       :login,
-      enable_starttls_auto: true
-    }
+    if EMAIL_CONFIG[:env] == "development"
+      options = {
+        address: "localhost",
+        port: 1025
+      }
+    else
+      options = {
+        address:              EMAIL_CONFIG[:smtp_address],
+        port:                 EMAIL_CONFIG[:smtp_port],
+        user_name:            EMAIL_CONFIG[:user],
+        password:             EMAIL_CONFIG[:pass],
+        authentication:       :login,
+        enable_starttls_auto: true
+      }
+    end
 
     Mail.defaults { delivery_method :smtp, options }
   end
 
-   def send(to:, subject:, body:, from: EMAIL_CONFIG[:user], attachments: {})
+  def send(to:, subject:, body:, from: nil, attachments: {})
+    from ||= EMAIL_CONFIG[:user] || "no-reply@example.com"
+
     mail = Mail.new do
       from    from
       to      to

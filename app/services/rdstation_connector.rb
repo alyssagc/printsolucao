@@ -123,37 +123,31 @@ class RDStationCRMConnector
     max_retries = 5
     retry_count = 0
 
-    begin
-      response = http.request(request)
+    loop do
+      begin
+        response = http.request(request)
 
-      case response
-      when Net::HTTPSuccess
-        JSON.parse(response.body) rescue {}
+        case response
+        when Net::HTTPSuccess
+          return JSON.parse(response.body) rescue {}
+        when Net::HTTPTooManyRequests
+          wait_time = response['Retry-After']&.to_i || (2**retry_count) * 5
+          logger.info("Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
+          sleep(wait_time)
+        else
+          raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+        end
 
-      when Net::HTTPTooManyRequests
-        wait_time = response['Retry-After']&.to_i || (2**retry_count) * 5
-        logger&.warn("*** Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
-        sleep(wait_time)
-        retry_count += 1
-        retry
-
-      else
-        raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+      rescue JSON::ParserError
+        logger.info("Resposta vazia ou inválida de #{url}")
+        return {}
+      rescue StandardError => e
+        logger.info("Erro de conexão: #{e.message}")
       end
 
-    rescue JSON::ParserError
-      logger&.warn("***Resposta vazia ou inválida de #{url}")
-      {}
-
-    rescue StandardError => e
       retry_count += 1
-      if retry_count <= max_retries
-        wait_time = (2**retry_count) * 3
-        logger&.warn("Erro de conexão (tentativa #{retry_count}/#{max_retries}): #{e.message}. Tentando novamente em #{wait_time}s...")
-        sleep(wait_time)
-        retry
-      else
-        raise "Erro permanente em #{method.upcase} #{url}: #{e.message}"
+      if retry_count > max_retries
+        raise "Erro permanente em #{method.upcase} #{url}: #{response&.body || 'nenhuma resposta'}"
       end
     end
   end

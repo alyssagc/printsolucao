@@ -3,8 +3,14 @@ require 'dotenv/load'
 require 'active_support'
 require 'active_support/core_ext/object/blank'
 
-# Carrega initializers
-Dir[File.expand_path("../initializers/*.rb", __FILE__)].sort.each { |file| require file }
+ENV['APP_ENV'] ||= 'development'
 
-# Carrega todo o app (services, generators, etc.)
-Dir[File.expand_path("../app/**/*.rb", __FILE__)].sort.each { |file| require file }
+# Ajusta o load path para a raiz do projeto
+ROOT_PATH = File.expand_path('..', __dir__)
+$LOAD_PATH.unshift(ROOT_PATH) unless $LOAD_PATH.include?(ROOT_PATH)
+
+# Carrega initializers
+Dir[File.join(ROOT_PATH, 'config', 'initializers', '*.rb')].sort.each { |f| require f }
+
+# Carrega app/services e app/generators
+Dir[File.join(ROOT_PATH, 'app', '**', '*.rb')].sort.each { |f| require f }
