@@ -4,14 +4,11 @@ require 'fileutils'
 require_relative '../config/environment'
 
 namespace :jobs do
-  # Configuração do logger
-  LOG_DIR  = 'log'
-  LOG_FILE = File.join(LOG_DIR, 'po_jobs.log')
-
-  def build_logger
-    FileUtils.mkdir_p(LOG_DIR)
-    logger = Logger.new(LOG_FILE, 'daily')
-    logger = Logger.new(LOG_FILE, 5, 5 * 1024 * 1024)
+  
+  def build_logger(task_name)
+    FileUtils.mkdir_p('log')
+    log_file = File.join('log', "#{task_name}.log")
+    logger = Logger.new(log_file, 5, 5 * 1024 * 1024)
 
     logger.formatter = proc do |severity, datetime, _progname, msg|
       "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] #{severity}: #{msg}\n"
@@ -22,7 +19,7 @@ namespace :jobs do
 
   desc 'Gera e processa pedidos'
   task :process_pos do
-    logger = build_logger
+    logger = build_logger('process_pos')
     logger.info "Iniciando Job: process_pos..."
 
     begin
@@ -50,7 +47,7 @@ namespace :jobs do
 
   desc 'Relatorio pedidosXfunisXresponsaveis'
   task :envia_dados_relatorio do
-    logger = build_logger
+    logger = build_logger('envia_dados_relatorio')
     logger.info "Iniciando Job: envia_dados_relatorio..."
 
     begin
