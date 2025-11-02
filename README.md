@@ -18,6 +18,10 @@ O sistema executa automaticamente:
 
 ### 🧩 Configuração
 ```
+#0. Clonar o projeto
+git clone git@github.com:usuario/printsolucao.git
+cd printsolucao
+
 #1.Instalar dependências
 bundle install
 
