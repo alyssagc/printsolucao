@@ -60,5 +60,5 @@ crontab -e
 ---
 
 #### Links úteis
-https://developers.rdstation.com/reference/crm-v1-introducao-e-requisitos (RD API Doc)
-https://crm.rdstation.com/app/home (RD Station app)
+- https://developers.rdstation.com/reference/crm-v1-introducao-e-requisitos (RD API Doc)
+- https://crm.rdstation.com/app/home (RD Station app)
