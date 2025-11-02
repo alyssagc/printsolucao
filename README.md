@@ -58,3 +58,7 @@ crontab -e
 0 18 * * 5 cd /caminho/do/projeto && /usr/bin/env bundle exec rake -f bin/jobs.rake jobs:envia_dados_relatorio
 ```
 ---
+
+#### Links úteis
+https://developers.rdstation.com/reference/crm-v1-introducao-e-requisitos (RD API Doc)
+https://crm.rdstation.com/app/home (RD Station app)
