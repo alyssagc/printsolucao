@@ -11,6 +11,7 @@ class RDStationCRMConnector
     "fechamento do pedido",
     "fechamento pedido"
   ].freeze
+  DELL_CAMPAING = 'dell'.freeze
 
   def initialize(token: RD_CONFIG[:token], base_url: "https://crm.rdstation.com/api/v1", logger: nil)
     @token = token
@@ -18,43 +19,27 @@ class RDStationCRMConnector
     @logger = logger || Logger.new($stdout)
   end
 
-  # Método genérico para GET (com suporte a query params)
-  def get(endpoint, params = {})
-    query = URI.encode_www_form(params.merge(token: token))
-    url = URI("#{base_url}/#{endpoint}?#{query}")
+  # Retorna um deal específico pelo ID
+  def fetch_deal(deal_id)
+    raise "deal_id não pode ser nil" if deal_id.blank?
 
-    http = Net::HTTP.new(url.host, url.port)
-    http.use_ssl = true
-
-    request = Net::HTTP::Get.new(url)
-    request['accept'] = 'application/json'
-
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão GET #{url}: #{e.message}"
-    end
-
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro na requisição GET #{url}: #{response.code} #{response.message}\n#{response.body}"
-    end
-
-    JSON.parse(response.body)
+    request(:get, "deals/#{deal_id}")
   end
 
-  # Retorna apenas os deals ganhos e em status de pedido
-  def get_won_deals
+  # Atualiza um deal específico
+  def update_deal(deal_id, attributes = {})
+    request(:put, "deals/#{deal_id}", body: attributes)
+  end
+
+  # Retorna negociações ganhas na coluna de pedido, que ainda não tiveram PO gerado/enviado
+  def fetch_won_deals_pending_po
     all_won = []
 
-    each_deal_page do |deals|
+    iterate_deals_page do |deals|
       deals.select! do |deal|
-        stage_name = normalize_string(deal.dig("deal_stage", "name"))
-        in_po_status = PO_STATUS.any? { |status| normalize_string(status) == stage_name }
-
-        campo_pedido_enviado = deal.dig("deal_custom_fields")&.find { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
-        enviar_pedido = campo_pedido_enviado.nil?
-
-        in_po_status && enviar_pedido
+        po_stage?(deal) &&
+        !deal_sent?(deal) &&
+        normalize_string(deal.dig("campaign", "name")) == DELL_CAMPAING
       end
 
       all_won.concat(deals)
@@ -62,52 +47,108 @@ class RDStationCRMConnector
     all_won
   end
 
-  # Método PUT atualizar atributos crm
-  def update_deal(deal_id, attributes = {})
-    url = URI("#{base_url}/deals/#{deal_id}?token=#{token}")
+  # Retorna negociações em qualquer status da coluna de pedido, independente de ganho
+  def fetch_deals_in_po_stage
+    all_deals = []
 
-    http = Net::HTTP.new(url.host, url.port)
-    http.use_ssl = true
-
-    request = Net::HTTP::Put.new(url)
-    request['Content-Type'] = 'application/json'
-    request.body = attributes.to_json
-
-    begin
-      response = http.request(request)
-    rescue StandardError => e
-      raise "Erro de conexão PUT #{url}: #{e.message}"
+    iterate_deals_page do |deals|
+      deals.select! { |deal| po_stage?(deal) }
+      all_deals.concat(deals)
     end
 
-    unless response.is_a?(Net::HTTPSuccess)
-      raise "Erro ao atualizar deal #{deal_id}: #{response.code} #{response.message}\n#{response.body}"
-    end
+    all_deals
+  end
 
-    JSON.parse(response.body)
+  # Cria uma tarefa
+  def create_task(payload)
+    request(:post, "tasks", body: payload)
   end
 
   private
+
+  def deal_sent?(deal)
+    Array(deal.dig("deal_custom_fields")).any? { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
+  end
+
+  def po_stage?(deal)
+    stage_name = normalize_string(deal.dig("deal_stage", "name"))
+    PO_STATUS.any? { |status| normalize_string(status) == stage_name }
+  end
 
   def normalize_string(str)
     str.to_s.downcase.strip
   end
 
-  # Itera por todas as páginas de deals, usando filtro win=true
-  def each_deal_page
+  def iterate_deals_page(params = {})
     next_page = nil
 
     loop do
-      params = { win: true } # filtro no servidor
-      params[:next_page] = next_page if next_page
+      query = params.dup
+      query[:limit] ||= 200
+      query[:next_page] = next_page if next_page
 
-      response = get("deals", params)
+      response = request(:get, "deals", params: query)
       deals = response.fetch("deals", [])
 
       yield deals if block_given?
 
       break unless response["has_more"]
-
       next_page = response["next_page"]
+    end
+  end
+
+  def request(method, endpoint, params: {}, body: nil)
+    url = URI("#{base_url}/#{endpoint}")
+    url.query = URI.encode_www_form(params.merge(token: token))
+
+    http = Net::HTTP.new(url.host, url.port)
+    http.use_ssl = true
+
+    request = case method
+              when :get  then Net::HTTP::Get.new(url)
+              when :put  then Net::HTTP::Put.new(url)
+              when :post then Net::HTTP::Post.new(url)
+              else
+                raise ArgumentError, "Método HTTP não suportado: #{method}"
+              end
+
+    request['Content-Type'] = 'application/json'
+    request['Accept'] = 'application/json'
+    request.body = body.to_json if body
+
+    perform_request_with_retries(http, request, method, url)
+  end
+
+  def perform_request_with_retries(http, request, method, url)
+    max_retries = 5
+    retry_count = 0
+
+    loop do
+      begin
+        response = http.request(request)
+
+        case response
+        when Net::HTTPSuccess
+          return JSON.parse(response.body) rescue {}
+        when Net::HTTPTooManyRequests
+          wait_time = response['Retry-After']&.to_i || (2**retry_count) * 5
+          logger.info("Limite de requisições atingido (429). Tentativa #{retry_count + 1}/#{max_retries}. Aguardando #{wait_time}s...")
+          sleep(wait_time)
+        else
+          raise "Erro na requisição #{method.upcase} #{url}: #{response.code} #{response.message}\n#{response.body}"
+        end
+
+      rescue JSON::ParserError
+        logger.info("Resposta vazia ou inválida de #{url}")
+        return {}
+      rescue StandardError => e
+        logger.info("Erro de conexão: #{e.message}")
+      end
+
+      retry_count += 1
+      if retry_count > max_retries
+        raise "Erro permanente em #{method.upcase} #{url}: #{response&.body || 'nenhuma resposta'}"
+      end
     end
   end
 end
