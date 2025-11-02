@@ -3,35 +3,70 @@ require 'logger'
 require 'fileutils'
 require_relative '../config/environment'
 
-namespace :po do
-  # Configuração do logger
-  LOG_DIR  = 'log'
-  LOG_FILE = File.join(LOG_DIR, 'po_jobs.log')
+namespace :jobs do
+  
+  def build_logger(task_name)
+    FileUtils.mkdir_p('log')
+    log_file = File.join('log', "#{task_name}.log")
+    logger = Logger.new(log_file, 5, 5 * 1024 * 1024)
 
-  desc 'Executa todo o fluxo: gerar JSON, enviar emails e atualizar CRM'
-  task :run do
-    FileUtils.mkdir_p(LOG_DIR)
-    logger = Logger.new(LOG_FILE, 'daily')
-    logger.level = Logger::INFO
+    logger.formatter = proc do |severity, datetime, _progname, msg|
+      "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}] #{severity}: #{msg}\n"
+    end
 
-    logger.info "Iniciando Job..."
+    logger
+  end
+
+  desc 'Gera e processa pedidos'
+  task :process_pos do
+    logger = build_logger('process_pos')
+    logger.info "Iniciando Job: process_pos..."
 
     begin
-      # 1️⃣ Inicializa CRM e busca deals
       crm_connector = RDStationCRMConnector.new
-      deals = crm_connector.get_won_deals
+      deals = crm_connector.fetch_won_deals_pending_po
+
       logger.info "✅ #{deals.size} deals encontrados para gerar POs"
 
-      if deals.empty?
+      if deals.blank?
         logger.info "*** Nenhum deal ganho encontrado. Encerrando execução."
         next
       end
 
-      # 2️⃣ Inicializa POGenerator e EmailSender
       po_gen = POGenerator.new(deals, logger: logger, crm_connector: crm_connector)
-
-      # 3️⃣ Atualiza CRM, envia email com PO
       po_gen.process_pos
+
+      logger.info "Job encerrado!"
+
+    rescue StandardError => e
+      logger.error "Erro na execução: #{e.message}"
+      logger.error e.backtrace.join("\n")
+      raise
+    end
+  end
+
+  desc 'Relatorio pedidosXfunisXresponsaveis'
+  task :envia_dados_relatorio do
+    logger = build_logger('envia_dados_relatorio')
+    logger.info "Iniciando Job: envia_dados_relatorio..."
+
+    begin
+      crm_connector = RDStationCRMConnector.new
+      deals = crm_connector.fetch_deals_in_po_stage
+
+      logger.info "✅ #{deals.size} deals encontrados"
+
+      if deals.any?
+        exporter = DealReportExporter.new(deals)
+        csv_string = exporter.to_csv_string
+
+        mailer = SmtpMailer.new
+        mailer.mail_deals_info(csv_string)
+
+        logger.info "Relatório enviado por email com sucesso!"
+      else
+        logger.info "*** Nenhum deal encontrado. Encerrando execução."
+      end
 
       logger.info "Job encerrado!"
 
