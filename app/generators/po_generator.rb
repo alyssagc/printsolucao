@@ -7,7 +7,7 @@ class POGenerator
 
   LAST_PO_FILE = 'output/last_po.txt'
   TEMPLATE_PATH = 'templates/emails/po_email.html.erb'
-  ID_VIVI = '64d62262f7bee8002510c6eb'
+  ID_RESPONSIBLE_PO_TASK = ''
 
 
   def initialize(deals, logger: nil, crm_connector: nil)
@@ -49,7 +49,7 @@ class POGenerator
         date: Date.today.strftime("%Y-%m-%d"),
         hour: Time.now.strftime("%H:%M"),
         type: "task",
-        user_ids: [ID_VIVI]
+        user_ids: [ID_RESPONSIBLE_PO_TASK]
       }
     }
 
