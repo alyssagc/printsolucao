@@ -7,7 +7,7 @@ class POGenerator
 
   LAST_PO_FILE = 'output/last_po.txt'
   TEMPLATE_PATH = 'templates/emails/po_email.html.erb'
-  ID_RESPONSIBLE_PO_TASK = ''
+  ID_RESPONSIBLE_PO_TASK = RD_CONFIG[:id_responsible_po_task]
 
 
   def initialize(deals, logger: nil, crm_connector: nil)
