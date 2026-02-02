@@ -2,7 +2,8 @@
 Automação de **Pedidos de Compra (POs)** e **Relatórios** integrados ao **RD Station CRM**.
 
 O sistema executa automaticamente:
-- Geração de POs para negócios ganhos  
+- Geração de POs para negócios ganhos
+- Criação de task no CRM para o responsável entrar com o pedido.
 - Envio de relatórios CSV com deals cadastrados  
 
 ---
