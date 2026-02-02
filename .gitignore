@@ -1,2 +1,3 @@
 #Nao versionar
 .env
+output/last_po.txt
