@@ -32,31 +32,30 @@ class RDStationCRMConnector
   end
 
   # Retorna negociações ganhas na coluna de pedido, que ainda não tiveram PO gerado/enviado
-  def fetch_won_deals_pending_po
+  def fetch_won_deals_pending_po(params={})
     all_won = []
 
-    iterate_deals_page do |deals|
-      deals.select! do |deal|
-        po_stage?(deal) &&
-        !deal_sent?(deal) &&
-        normalize_string(deal.dig("campaign", "name")) == DELL_CAMPAING
+    iterate_by_stage(params) do |stage_params|
+      iterate_deals_page(stage_params) do |deals|
+        pending = deals.reject { |deal| deal_sent?(deal) }
+        all_won.concat(pending)
       end
-
-      all_won.concat(deals)
     end
-    all_won
+
+    all_won.uniq { |deal| deal["id"] }
   end
 
   # Retorna negociações em qualquer status da coluna de pedido, independente de ganho
-  def fetch_deals_in_po_stage
+  def fetch_deals_in_po_stage(params={})
     all_deals = []
-
-    iterate_deals_page do |deals|
-      deals.select! { |deal| po_stage?(deal) }
-      all_deals.concat(deals)
+    
+    iterate_by_stage(params) do |stage_params|
+      iterate_deals_page(stage_params) do |deals|
+        all_deals.concat(deals)
+      end
     end
 
-    all_deals
+    all_deals.uniq { |deal| deal["id"] }
   end
 
   # Cria uma tarefa
@@ -65,6 +64,18 @@ class RDStationCRMConnector
   end
 
   private
+
+  def iterate_by_stage(params)
+    stage_ids = Array(params[:deal_stage_id]).presence
+
+    if stage_ids
+      stage_ids.each do |stage_id|
+        yield params.merge(deal_stage_id: stage_id)
+      end
+    else
+      yield params
+    end
+  end
 
   def deal_sent?(deal)
     Array(deal.dig("deal_custom_fields")).any? { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
