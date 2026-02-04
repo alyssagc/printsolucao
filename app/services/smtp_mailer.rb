@@ -11,10 +11,7 @@ class SmtpMailer
       options = {
         address:              EMAIL_CONFIG[:smtp_address],
         port:                 EMAIL_CONFIG[:smtp_port],
-        user_name:            EMAIL_CONFIG[:user],
-        password:             EMAIL_CONFIG[:pass],
-        authentication:       :login,
-        enable_starttls_auto: true
+        openssl_verify_mode: OpenSSL::SSL::VERIFY_NONE
       }
     end
 
