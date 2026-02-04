@@ -24,9 +24,14 @@ namespace :jobs do
 
     begin
       crm_connector = RDStationCRMConnector.new
-      deals = crm_connector.fetch_won_deals_pending_po
 
-      logger.info "✅ #{deals.size} deals encontrados para gerar POs"
+      params = {
+        campaign_id: RD_CONFIG[:id_dell_campaign],
+        deal_stage_id: RD_CONFIG[:po_stage_ids]
+      }
+
+      deals = crm_connector.fetch_won_deals_pending_po(params)
+      logger.info "#{deals.size} deals encontrados para gerar POs"
 
       if deals.blank?
         logger.info "*** Nenhum deal ganho encontrado. Encerrando execução."
@@ -52,9 +57,21 @@ namespace :jobs do
 
     begin
       crm_connector = RDStationCRMConnector.new
-      deals = crm_connector.fetch_deals_in_po_stage
 
-      logger.info "✅ #{deals.size} deals encontrados"
+      params = {
+        created_at_period: true,
+        start_date: (Time.now - 60.days).beginning_of_day.iso8601,
+        deal_stage_id: RD_CONFIG[:po_stage_ids]
+      }
+
+      start_date = Date.iso8601(params[:start_date])
+
+      logger.info(
+        "Buscando deals criados a partir de #{start_date.strftime('%d/%m/%Y')} até agora"
+      )
+
+      deals = crm_connector.fetch_deals_in_po_stage(params)
+      logger.info "#{deals.size} deals encontrados"
 
       if deals.any?
         exporter = DealReportExporter.new(deals)

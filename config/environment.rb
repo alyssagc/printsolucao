@@ -1,6 +1,7 @@
 require 'bundler/setup'
 require 'dotenv/load'
 require 'active_support'
+require 'active_support/all'
 require 'active_support/core_ext/object/blank'
 
 ENV['APP_ENV'] ||= 'development'
