@@ -24,6 +24,8 @@ class POGenerator
     @deals.each do |deal|
       po = po_hash(deal)
 
+      logger.info "Gerando pedido para #{po['deal_name']}"
+      logger.info "Deal ID #{po['deal_id']}"
       logger.info "#{po['po_number']}"
 
       mark_deal_as_sent(po)
