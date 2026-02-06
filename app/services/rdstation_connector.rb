@@ -78,7 +78,10 @@ class RDStationCRMConnector
   end
 
   def deal_sent?(deal)
-    Array(deal.dig("deal_custom_fields")).any? { |f| f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] }
+    Array(deal.dig("deal_custom_fields")).any? do |f|
+      f["custom_field_id"] == RD_CONFIG[:id_pedido_enviado] &&
+        f["value"].to_s.casecmp("sim").zero?
+    end
   end
 
   def po_stage?(deal)
