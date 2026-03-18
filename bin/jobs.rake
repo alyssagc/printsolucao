@@ -39,13 +39,22 @@ namespace :jobs do
       end
 
       po_gen = POGenerator.new(deals, logger: logger, crm_connector: crm_connector)
-      po_gen.process_pos
+      summary = po_gen.process_pos
 
+      logger.info "Resumo: #{summary[:success]}/#{summary[:total]} POs gerados com sucesso, #{summary[:failures].size} falha(s)."
       logger.info "Job encerrado!"
 
     rescue StandardError => e
       logger.error "Erro na execução: #{e.message}"
       logger.error e.backtrace.join("\n")
+      begin
+        SmtpMailer.new.mail_alert(
+          subject: "Falha crítica em process_pos",
+          message: "Erro: #{e.message}<br><pre>#{e.backtrace.first(5).join("\n")}</pre>"
+        )
+      rescue StandardError => mail_err
+        logger.error "Falha ao enviar alerta: #{mail_err.message}"
+      end
       raise
     end
   end
@@ -90,6 +99,14 @@ namespace :jobs do
     rescue StandardError => e
       logger.error "Erro na execução: #{e.message}"
       logger.error e.backtrace.join("\n")
+      begin
+        SmtpMailer.new.mail_alert(
+          subject: "Falha crítica em envia_dados_relatorio",
+          message: "Erro: #{e.message}<br><pre>#{e.backtrace.first(5).join("\n")}</pre>"
+        )
+      rescue StandardError => mail_err
+        logger.error "Falha ao enviar alerta: #{mail_err.message}"
+      end
       raise
     end
   end
