@@ -1,0 +1,8 @@
+.git
+.gitignore
+.env
+.ruby-lsp
+.vscode
+log/
+output/last_po.txt
+README.md
