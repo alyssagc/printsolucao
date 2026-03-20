@@ -53,4 +53,13 @@ class SmtpMailer
       body: html_body
     )
   end
+
+  def mail_alert(subject:, message:)
+    send(
+      to: EMAIL_CONFIG[:alert_to],
+      subject: "[ALERTA] #{subject}",
+      body: "<p>#{message}</p>"
+    )
+  end
+
 end

@@ -1,28 +1,35 @@
 require 'json'
 require 'erb'
 require 'time'
+require 'fileutils'
 
 class POGenerator
   attr_reader :deals, :logger
 
-  LAST_PO_FILE = 'output/last_po.txt'
-  TEMPLATE_PATH = 'templates/emails/po_email.html.erb'
+  LAST_PO_FILE   = 'output/last_po.txt'
+  BACKUP_PO_FILE = 'output/last_po.txt.bak'
+  TEMPLATE_PATH  = 'templates/emails/po_email.html.erb'
   ID_RESPONSIBLE_PO_TASK = RD_CONFIG[:id_responsible_po_task]
-
 
   def initialize(deals, logger: nil, crm_connector: nil)
     @deals = deals || []
     @logger = logger || Logger.new($stdout)
     @current_po = read_last_po
     @crm_connector = crm_connector
+    @mailer = SmtpMailer.new
   end
 
+  # Retorna hash com total, success e failures
   def process_pos
+    @failures = []
+    @success_count = 0
+
     logger.info "Fluxo POs iniciado"
     logger.info ""
 
     @deals.each do |deal|
       po = po_hash(deal)
+      failures_before = @failures.size
 
       logger.info "Gerando pedido para #{po['deal_name']}"
       logger.info "Deal ID #{po['deal_id']}"
@@ -33,15 +40,18 @@ class POGenerator
       send_po_email(po)
       create_task(po)
 
+      @success_count += 1 if @failures.size == failures_before
+
       logger.info ""
     end
 
     logger.info "Fluxo de POs finalizado!"
+
+    { total: @deals.size, success: @success_count, failures: @failures }
   end
 
   private
 
-  #Cria task (vivi) para entrar com pedido
   def create_task(po_hash)
     task_payload = {
       task: {
@@ -51,17 +61,18 @@ class POGenerator
         date: Date.today.strftime("%Y-%m-%d"),
         hour: Time.now.strftime("%H:%M"),
         type: "task",
-        user_ids: [ID_RESPONSIBLE_PO_TASK]
+        user_ids: ID_RESPONSIBLE_PO_TASK
       }
     }
 
     response = @crm_connector.create_task(task_payload)
     logger.info "Tarefa criada para Viviane: #{response['id']} -> #{response['subject']}"
   rescue StandardError => e
-    logger.error "*** Falha ao criar tarefa: #{e.message}"
+    msg = "Falha ao criar tarefa para deal #{po_hash['deal_id']}: #{e.message}"
+    logger.error "*** #{msg}"
+    @failures << msg
   end
 
-  # Envia email para o vendedor
   def send_po_email(po)
     recipient = po.dig('owner', 'email')
 
@@ -71,19 +82,19 @@ class POGenerator
     end
 
     template_content = File.read(TEMPLATE_PATH)
-    mailer = SmtpMailer.new
 
     begin
       html_body = ERB.new(template_content).result_with_hash(deal: po)
-      mailer.mail_po_infos(po_number: po['po_number'], recipient: recipient, html_body: html_body)
+      @mailer.mail_po_infos(po_number: po['po_number'], recipient: recipient, html_body: html_body)
 
       logger.info "Email enviado para #{recipient} com o PO #{po['po_number']}"
     rescue StandardError => e
-      logger.error "*** Falha ao enviar email para #{recipient}: #{e.message}"
+      msg = "Falha ao enviar email para #{recipient} (deal #{po['deal_id']}): #{e.message}"
+      logger.error "*** #{msg}"
+      @failures << msg
     end
   end
 
-  # Atualiza o CRM com o pedido
   def mark_deal_as_sent(po_hash)
     new_name = "#{po_hash['deal_name']} - #{po_hash['po_number']}"
     params = {
@@ -102,7 +113,9 @@ class POGenerator
 
     logger.info "CRM atualizado: #{po_hash['deal_id']} -> #{new_name}"
   rescue StandardError => e
-    logger.error "*** Falha ao atualizar CRM para deal #{po_hash['deal_id']}: #{e.message}"
+    msg = "Falha ao atualizar CRM para deal #{po_hash['deal_id']}: #{e.message}"
+    logger.error "*** #{msg}"
+    @failures << msg
   end
 
   def safe_format_date(date)
@@ -113,7 +126,6 @@ class POGenerator
     "—"
   end
 
-  # Gera o hash do PO
   def po_hash(deal)
     {
       "po_number" => next_po_number,
@@ -152,25 +164,33 @@ class POGenerator
     }
   end
 
-  # Pega o ultimo PO gerado
   def read_last_po
-    last = File.read(LAST_PO_FILE).strip
-    logger.info "Ultimo PO gerado: #{last}"
+    content = read_po_file
+    logger.info "Ultimo PO gerado: #{content}"
     logger.info " "
-
-    last.split('-')[1].split('/').first.to_i
+    content.split('-')[1].split('/').first.to_i
   end
 
-  # Gera o numero de PO sequencial formato pedido/ano
+  def read_po_file
+    if File.exist?(LAST_PO_FILE)
+      File.read(LAST_PO_FILE).strip
+    elsif File.exist?(BACKUP_PO_FILE)
+      logger.warn "Arquivo principal ausente. Usando backup: #{BACKUP_PO_FILE}"
+      File.read(BACKUP_PO_FILE).strip
+    else
+      raise "Nenhum arquivo de PO encontrado (#{LAST_PO_FILE} ou #{BACKUP_PO_FILE}). Verifique o estado do sistema."
+    end
+  end
+
   def next_po_number
     @current_po += 1
     year = Time.now.year.to_s[2..3]
     "PO-#{@current_po}/#{year}"
   end
 
-  # Atualiza last_po.txt
   def write_last_po(po_number)
     logger.info "Atualizando arquivo .txt com ultimo PO: #{po_number}"
+    FileUtils.cp(LAST_PO_FILE, BACKUP_PO_FILE) if File.exist?(LAST_PO_FILE)
     File.write(LAST_PO_FILE, po_number)
   end
 end

@@ -8,7 +8,8 @@ gem 'mail'
 gem 'dotenv'
 gem 'activesupport', '~> 7.1.6'
 
-group :development do
+group :development, :test do
+  gem 'rspec'
   gem 'pry'
   gem 'pry-byebug'
 end

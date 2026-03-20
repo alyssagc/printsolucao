@@ -1,3 +1,5 @@
 #Nao versionar
 .env
-output/last_po.txt
+output/
+.vscode/
+log/

@@ -1,0 +1,15 @@
+services:
+  process_pos:
+    build: .
+    env_file: .env
+    volumes:
+      - ./log:/app/log
+      - ./output:/app/output
+    command: bundle exec rake jobs:process_pos
+
+  envia_dados_relatorio:
+    build: .
+    env_file: .env
+    volumes:
+      - ./log:/app/log
+    command: bundle exec rake jobs:envia_dados_relatorio
